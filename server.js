@@ -2,6 +2,7 @@ const express = require("express");
 const cors = require("cors");
 
 const logger = require("./middleware/logger");
+const notificationRoutes = require("./routes/notificationRoutes");
 
 const app = express();
 
@@ -9,13 +10,13 @@ app.use(cors());
 app.use(express.json());
 
 app.use(logger);
-const notificationRoutes = require("./routes/notificationRoutes");
 
 app.use("/api", notificationRoutes);
 
 app.get("/", (req, res) => {
 
     res.json({
+        success: true,
         message: "Affordmed Notification System Running"
     });
 
