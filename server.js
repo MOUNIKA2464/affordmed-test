@@ -9,6 +9,9 @@ app.use(cors());
 app.use(express.json());
 
 app.use(logger);
+const notificationRoutes = require("./routes/notificationRoutes");
+
+app.use("/api", notificationRoutes);
 
 app.get("/", (req, res) => {
 
