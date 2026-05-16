@@ -1,0 +1,434 @@
+# Stage 1
+
+## Notification System REST API Design
+
+### Base URL
+```http
+http://localhost:3000/api
+```
+
+---
+
+## Core Features
+
+- Send notifications
+- Fetch notifications
+- Mark notification as read
+- Delete notification
+- Real-time notification delivery
+
+---
+
+# API Endpoints
+
+## 1. Get All Notifications
+
+### Endpoint
+```http
+GET /notifications
+```
+
+### Headers
+```json
+{
+  "Authorization": "Bearer token"
+}
+```
+
+### Response
+```json
+{
+  "success": true,
+  "notifications": [
+    {
+      "id": "101",
+      "studentId": "1042",
+      "type": "Placement",
+      "message": "TCS Hiring",
+      "isRead": false,
+      "createdAt": "2026-05-16T10:30:00Z"
+    }
+  ]
+}
+```
+
+---
+
+## 2. Create Notification
+
+### Endpoint
+```http
+POST /notifications
+```
+
+### Request
+```json
+{
+  "studentId": "1042",
+  "type": "Placement",
+  "message": "Infosys Hiring"
+}
+```
+
+### Response
+```json
+{
+  "success": true,
+  "message": "Notification created successfully"
+}
+```
+
+---
+
+## 3. Mark Notification as Read
+
+### Endpoint
+```http
+PUT /notifications/:id/read
+```
+
+### Response
+```json
+{
+  "success": true,
+  "message": "Notification marked as read"
+}
+```
+
+---
+
+## 4. Delete Notification
+
+### Endpoint
+```http
+DELETE /notifications/:id
+```
+
+### Response
+```json
+{
+  "success": true,
+  "message": "Notification deleted successfully"
+}
+```
+
+---
+
+# Real-Time Notification Mechanism
+
+- Use WebSockets or Socket.IO
+- Notifications are pushed instantly to logged-in students
+- Reduces repeated API polling
+- Improves user experience
+
+---
+
+# Stage 2
+
+## Database Choice
+
+I would use PostgreSQL because:
+
+- Structured relational data
+- ACID compliance
+- Better indexing support
+- Reliable for large-scale applications
+
+---
+
+# Database Schema
+
+## Notifications Table
+
+| Column Name | Data Type |
+|-------------|------------|
+| id | UUID |
+| studentId | INTEGER |
+| type | VARCHAR |
+| message | TEXT |
+| isRead | BOOLEAN |
+| createdAt | TIMESTAMP |
+
+---
+
+# Problems with Large Data
+
+- Slow queries
+- Increased storage
+- High DB load
+- Delayed responses
+
+---
+
+# Solutions
+
+- Add indexes
+- Use pagination
+- Archive old notifications
+- Use caching
+
+---
+
+# Sample SQL Queries
+
+## Insert Notification
+
+```sql
+INSERT INTO notifications(studentId, type, message, isRead, createdAt)
+VALUES (1042, 'Placement', 'TCS Hiring', false, NOW());
+```
+
+## Fetch Notifications
+
+```sql
+SELECT * FROM notifications
+WHERE studentId = 1042
+ORDER BY createdAt DESC;
+```
+
+---
+
+# Stage 3
+
+## Given Query
+
+```sql
+SELECT * FROM notifications
+WHERE studentID = 1042 AND isRead = false
+ORDER BY createdAt DESC;
+```
+
+---
+
+# Why Query is Slow
+
+- Large dataset
+- Missing indexes
+- Sorting operation cost
+- Full table scan possible
+
+---
+
+# Solution
+
+Create composite index:
+
+```sql
+CREATE INDEX idx_notifications
+ON notifications(studentID, isRead, createdAt DESC);
+```
+
+---
+
+# Computational Cost
+
+Without index:
+- O(n)
+
+With index:
+- O(log n)
+
+---
+
+# Should We Index Every Column?
+
+No.
+
+Because:
+- Increases storage
+- Slows insert/update operations
+- Unnecessary indexes reduce performance
+
+Indexes should only be added on frequently queried columns.
+
+---
+
+# Query for Placement Notifications in Last 7 Days
+
+```sql
+SELECT DISTINCT studentID
+FROM notifications
+WHERE notificationType = 'Placement'
+AND createdAt >= NOW() - INTERVAL '7 days';
+```
+
+---
+
+# Stage 4
+
+## Problem
+
+Notifications are fetched on every page load causing:
+
+- Heavy database load
+- Increased response time
+- Poor user experience
+
+---
+
+# Solutions
+
+## 1. Caching
+
+Use Redis cache.
+
+### Advantages
+- Faster response
+- Reduced DB load
+
+### Tradeoff
+- Cache invalidation complexity
+
+---
+
+## 2. Pagination
+
+Load limited notifications.
+
+### Advantages
+- Reduced response size
+- Faster loading
+
+### Tradeoff
+- Multiple API calls needed
+
+---
+
+## 3. WebSockets
+
+Push notifications instantly.
+
+### Advantages
+- Real-time updates
+- Better UX
+
+### Tradeoff
+- More server resources
+
+---
+
+## 4. Lazy Loading
+
+Load notifications only when user opens inbox.
+
+### Advantages
+- Lower unnecessary requests
+
+### Tradeoff
+- Slight initial loading delay
+
+---
+
+# Stage 5
+
+## Problems in Current Implementation
+
+- Sequential processing
+- Slow performance
+- Failure handling missing
+- No retry mechanism
+- Tight coupling
+
+---
+
+# Improved Design
+
+- Use message queues
+- Use asynchronous workers
+- Retry failed emails
+- Separate DB and email operations
+
+---
+
+# Revised Pseudocode
+
+```python
+function notify_all(student_ids, message):
+
+    for student_id in student_ids:
+
+        save_notification_to_db(student_id, message)
+
+        add_to_email_queue(student_id, message)
+
+        add_to_push_queue(student_id, message)
+```
+
+---
+
+# Why Separate DB and Email Operations?
+
+Because:
+
+- DB write should not fail due to email failure
+- Improves scalability
+- Faster processing
+- Better reliability
+
+---
+
+# Stage 6
+
+## Priority Inbox Design
+
+Priority is calculated using:
+
+- Notification type weight
+- Recency
+
+---
+
+# Priority Weights
+
+| Type | Weight |
+|------|--------|
+| Placement | 3 |
+| Result | 2 |
+| Event | 1 |
+
+---
+
+# Priority Formula
+
+```text
+Priority Score = Type Weight + Recency Score
+```
+
+---
+
+# Efficient Top 10 Maintenance
+
+Use:
+
+- Max Heap / Priority Queue
+
+Advantages:
+- Efficient insertion
+- Fast retrieval of top notifications
+
+Complexity:
+- Insertion → O(log n)
+- Top retrieval → O(1)
+
+---
+
+# Sample JavaScript Logic
+
+```javascript
+const weights = {
+    Placement: 3,
+    Result: 2,
+    Event: 1
+};
+
+function calculatePriority(notification) {
+    return weights[notification.Type] || 0;
+}
+
+function getTopNotifications(notifications) {
+
+    return notifications
+        .sort((a, b) => calculatePriority(b) - calculatePriority(a))
+        .slice(0, 10);
+}
+```
